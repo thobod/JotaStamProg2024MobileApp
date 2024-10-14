@@ -2,6 +2,8 @@
 using Android.OS;
 using Android.Widget;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System;
 using System.Net.Http;
 using System.Text;
 using System.Threading;
@@ -9,17 +11,15 @@ using System.Threading.Tasks;
 
 namespace JotaStamProg2024
 {
-    [Activity(Label = "MainActivity", MainLauncher = true)]
+    [Activity(Label = "@string/app_name", MainLauncher = true)]
     public class MainActivity : Activity
     {
+        private EditText ipAddressInput;
         private SeekBar frequencySlider, durationSlider, offDurationSlider;
-        private EditText connectVolumeInput, cutVolumeInput, cutSuccessVolumeInput, cutFailedVolumeInput;
-        private EditText bombCountInput, minutesRemainingInput, ipAddressInput;
-        private TextView frequencyLabel, durationLabel, offDurationLabel;
-        private Button resetButton, updateSoundButton;
+        private EditText connectVolumeInput, cutVolumeInput, cutSuccessVolumeInput, cutFailedVolumeInput, volumeInput;
+        private Button updateSoundButton, updateGameStateButton, resetSoundButton;
+        private Switch enableSoundSwitch;
 
-        // Default IP Address
-        private string defaultIpAddress = "http://192.168.1.112";
         private CancellationTokenSource _cancellationTokenSource;
 
         protected override void OnCreate(Bundle savedInstanceState)
@@ -27,13 +27,7 @@ namespace JotaStamProg2024
             base.OnCreate(savedInstanceState);
             SetContentView(Resource.Layout.activity_main);
 
-            InitializeViews();
-            SetDefaultValues();
-        }
-
-        // Initialize views and set up event listeners
-        private void InitializeViews()
-        {
+            // Initialize UI elements
             ipAddressInput = FindViewById<EditText>(Resource.Id.ipAddress);
             frequencySlider = FindViewById<SeekBar>(Resource.Id.frequencySlider);
             durationSlider = FindViewById<SeekBar>(Resource.Id.durationSlider);
@@ -41,139 +35,140 @@ namespace JotaStamProg2024
             connectVolumeInput = FindViewById<EditText>(Resource.Id.connectVolumeInput);
             cutVolumeInput = FindViewById<EditText>(Resource.Id.cutVolumeInput);
             cutSuccessVolumeInput = FindViewById<EditText>(Resource.Id.cutSuccessVolumeInput);
+            volumeInput = FindViewById<EditText>(Resource.Id.volumeInput);
             cutFailedVolumeInput = FindViewById<EditText>(Resource.Id.cutFailedVolumeInput);
-            bombCountInput = FindViewById<EditText>(Resource.Id.bombCountInput);
-            minutesRemainingInput = FindViewById<EditText>(Resource.Id.minutesRemainingInput);
-            resetButton = FindViewById<Button>(Resource.Id.resetButton);
             updateSoundButton = FindViewById<Button>(Resource.Id.updateSoundButton);
+            resetSoundButton = FindViewById<Button>(Resource.Id.resetSoundButton);
+            updateGameStateButton = FindViewById<Button>(Resource.Id.updateGameStateButton);
+            enableSoundSwitch = FindViewById<Switch>(Resource.Id.enableSoundSwitch);
 
-            frequencyLabel = FindViewById<TextView>(Resource.Id.frequencyLabel);
-            durationLabel = FindViewById<TextView>(Resource.Id.durationLabel);
-            offDurationLabel = FindViewById<TextView>(Resource.Id.offDurationLabel);
+            // Set default IP address
+            ipAddressInput.Text = "http://192.168.1.112";
 
-            // Set up slider and button event handlers
-            frequencySlider.ProgressChanged += (s, e) =>
-            {
-                frequencyLabel.Text = $"Frequency: {e.Progress + 200} Hz";
-                StartContinuousUpdates();
-            };
+            // Set event handlers
+            updateSoundButton.Click += OnUpdateSoundButtonClick;
+            updateGameStateButton.Click += OnUpdateGameStateButtonClick;
+            resetSoundButton.Click += OnResetSoundButtonClick;
 
-            durationSlider.ProgressChanged += (s, e) =>
-            {
-                durationLabel.Text = $"Duration: {e.Progress} ms";
-                StartContinuousUpdates();
-            };
+            // Initialize sliders
+            frequencySlider.Max = 4800; // Max value for frequency slider
+            durationSlider.Max = 2000;   // Max value for duration slider
+            offDurationSlider.Max = 2000; // Max value for off-duration slider
 
-            offDurationSlider.ProgressChanged += (s, e) =>
-            {
-                offDurationLabel.Text = $"Off Duration: {e.Progress} ms";
-                StartContinuousUpdates();
-            };
-
-            resetButton.Click += async (s, e) => await SendResetRequest();
-            updateSoundButton.Click += async (s, e) => await SendSoundRequest();
+            // Optional: Set initial values
+            ResetSound();
         }
 
-        // Set default values for initial labels and inputs
-        private void SetDefaultValues()
+        private async void OnUpdateSoundButtonClick(object sender, EventArgs e)
         {
-            ipAddressInput.Text = defaultIpAddress;
-            frequencyLabel.Text = "Frequency: 200 Hz";
-            durationLabel.Text = "Duration: 0 ms";
-            offDurationLabel.Text = "Off Duration: 0 ms";
+            await SendSoundRequest(); // Call the request method
         }
-
-        // Send reset game request
-        private async Task SendResetRequest()
+        private async void OnResetSoundButtonClick(object sender, EventArgs e)
         {
-            // Ensure bomb count and minutes remaining are valid integers
-            if (!int.TryParse(bombCountInput.Text, out int bombCount) || !int.TryParse(minutesRemainingInput.Text, out int minutesRemaining))
-            {
-                Toast.MakeText(this, "Please enter valid bomb count and minutes remaining.", ToastLength.Short).Show();
-                return; // Exit the method early if invalid input
-            }
-
-            var resetData = new
-            {
-                bombCount,
-                minutesRemaining
-            };
-
-            string jsonResetData = JsonConvert.SerializeObject(resetData);
-            await SendPostRequest($"{ipAddressInput.Text}/gamestate", jsonResetData, "Gamestate updated!", "Gamestate update Failed!");
+            ResetSound(); // Call the request method
         }
 
-        // Start continuous updates for sound parameters
-        private void StartContinuousUpdates()
-        {
-            // Cancel any ongoing updates
-            _cancellationTokenSource?.Cancel();
-            _cancellationTokenSource = new CancellationTokenSource();
-            var token = _cancellationTokenSource.Token;
 
-            // Start the update task
-            Task.Run(async () =>
-            {
-                while (!token.IsCancellationRequested)
-                {
-                    await SendSoundRequest();
-                    await Task.Delay(1000); // Delay for 1 second between requests
-                }
-            });
-        }
-
-        // Send sound update request
         private async Task SendSoundRequest()
         {
-            // Ensure all volume fields are valid integers
-            if (!int.TryParse(connectVolumeInput.Text, out int connectVolume) ||
-                !int.TryParse(cutVolumeInput.Text, out int cutVolume) ||
-                !int.TryParse(cutSuccessVolumeInput.Text, out int cutSuccessVolume) ||
-                !int.TryParse(cutFailedVolumeInput.Text, out int cutFailedVolume))
-            {
-                Toast.MakeText(this, "Please fill in all volume fields with valid values.", ToastLength.Short).Show();
-                return; // Exit the method early if any volume input is invalid
-            }
-
+            // Gather values from the UI elements
             int frequency = frequencySlider.Progress + 200; // Frequency from 200 Hz to 5200 Hz
             int duration = durationSlider.Progress; // Duration in ms
             int offDuration = offDurationSlider.Progress; // Off Duration in ms
+            bool enable = enableSoundSwitch.Checked; // Get enable status
 
-            // Create the sound data object with the expected keys
-            var soundData = new
+            // Create the sound data JObject
+            var soundData = new JObject();
+            soundData.Add("enable", enable);
+            soundData.Add("freq", frequency);
+            soundData.Add("duration", duration);
+            soundData.Add("offDuration", offDuration);
+
+            if (int.TryParse(volumeInput.Text, out int volumeInputValue))
             {
-                connectVolume,
-                cutVolume,
-                cutSuccessVolume,
-                cutFailedVolume,
-                enable = true,         // Assuming we want to enable sound when sending
-                freq = frequency,      // Frequency
-                duration = duration,   // Duration
-                offDuration = offDuration // Off Duration
-            };
+                soundData.Add("volume", volumeInputValue);
+            }
+            // Check and add volume fields only if they are filled
+            if (int.TryParse(connectVolumeInput.Text, out int connectVolumeInputValue))
+            {
+                soundData.Add("connectVolume", connectVolumeInputValue);
+            }
 
-            string jsonSoundData = JsonConvert.SerializeObject(soundData);
+            if (int.TryParse(cutVolumeInput.Text, out int cutVolumeInputValue))
+            {
+                soundData.Add("cutVolume", cutVolumeInputValue);
+            }
+
+            if (int.TryParse(cutSuccessVolumeInput.Text, out int cutSuccessVolumeInputValue))
+            {
+                soundData.Add("cutSuccessVolume", cutSuccessVolumeInputValue);
+            }
+
+            if (int.TryParse(cutFailedVolumeInput.Text, out int cutFailedVolumeInputValue))
+            {
+                soundData.Add("cutFailedVolume", cutFailedVolumeInputValue);
+            }
+
+            string jsonSoundData = soundData.ToString();
             await SendPostRequest($"{ipAddressInput.Text}/sound", jsonSoundData, "Sound Updated!", "Sound Update Failed!");
         }
 
-        // Generalized POST request handler
-        private async Task SendPostRequest(string url, string jsonData, string successMessage, string failureMessage)
+
+
+        private async void OnUpdateGameStateButtonClick(object sender, EventArgs e)
         {
-            using (HttpClient client = new HttpClient())
+            await SendGameStateRequest(); // Call the request method
+        }
+
+        private async Task SendGameStateRequest()
+        {
+            var gameStateData = new JObject();
+
+            if (int.TryParse(FindViewById<EditText>(Resource.Id.bombCountInput).Text, out int bombCountValue))
+            {
+                gameStateData.Add("bombCount", bombCountValue);
+            }
+            if (int.TryParse(FindViewById<EditText>(Resource.Id.minutesRemainingInput).Text, out int minutesRemainingValue))
+            {
+                gameStateData.Add("minutesRemaining", minutesRemainingValue);
+            }
+
+            string jsonGameStateData = JsonConvert.SerializeObject(gameStateData);
+            await SendPostRequest($"{ipAddressInput.Text}/gamestate", jsonGameStateData, "Game State Updated!", "Game State Update Failed!");
+        }
+
+        private async Task SendPostRequest(string url, string jsonData, string successMessage, string errorMessage)
+        {
+            using (var client = new HttpClient())
             {
                 var content = new StringContent(jsonData, Encoding.UTF8, "application/json");
-                HttpResponseMessage response = await client.PostAsync(url, content);
-
-                string toastMessage = response.IsSuccessStatusCode ? successMessage : failureMessage;
-                Toast.MakeText(this, toastMessage, ToastLength.Short).Show();
+                var response = await client.PostAsync(url, content);
+                if (response.IsSuccessStatusCode)
+                {
+                    Toast.MakeText(this, successMessage, ToastLength.Short).Show();
+                }
+                else
+                {
+                    Toast.MakeText(this, errorMessage, ToastLength.Short).Show();
+                }
             }
         }
 
-        // Cleanup when activity is destroyed
+        private void ResetSound()
+        {
+            frequencySlider.Progress = 1000;
+            durationSlider.Progress = 300;
+            offDurationSlider.Progress = 700;
+            volumeInput.Text = "1";
+            connectVolumeInput.Text = "1";
+            cutVolumeInput.Text = "15";
+            cutSuccessVolumeInput.Text = "1";
+            cutFailedVolumeInput.Text = "100";
+        }
+
         protected override void OnDestroy()
         {
             base.OnDestroy();
-            _cancellationTokenSource?.Cancel(); // Cancel ongoing updates
         }
     }
 }

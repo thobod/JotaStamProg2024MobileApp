@@ -34,6 +34,12 @@
             android:textStyle="bold"
             android:layout_marginTop="20dp" />
 
+        <Switch
+            android:id="@+id/enableSoundSwitch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Enable Sound" />
+
         <TextView
             android:id="@+id/frequencyLabel"
             android:layout_width="wrap_content"
@@ -66,6 +72,12 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Volume" />
+        
+        <EditText
+            android:id="@+id/volumeInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Volume" />
 
         <EditText
             android:id="@+id/connectVolumeInput"
@@ -96,6 +108,12 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Update Sound" />
+        
+        <Button
+            android:id="@+id/resetSoundButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Reset Sound" />
 
         <!-- Bomb Controls Section -->
         <TextView
@@ -120,9 +138,9 @@
             android:hint="Minutes Remaining" />
 
         <Button
-            android:id="@+id/resetButton"
+            android:id="@+id/updateGameStateButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Reset Game" />
+            android:text="Update Game State" />
     </LinearLayout>
 </ScrollView>
